@@ -1,0 +1,6 @@
+{
+    "297284d3545f90e0839ded12e299fc58d212edde64f86a0cd1bfda859d103f85": "{\"filename\": \"file_C.txt\", \"filesize\": 38157, \"hash_content\": \"4735881096d67d6afb158ca209bdad8e6bdf674b86a95987569a7316b2ef1f00\"}",
+    "34d8b18b23c773dc8e6955761cc72267d349d6c7709655b949845a342e184650": "{\"filename\": \"file_D.txt\", \"filesize\": 9, \"hash_content\": \"2deb4db564eb7bf637bbcd3cf2d964639e63825caaa233dd8d759708b272dd55\"}",
+    "f9e1d7012ad8d3fbb8b7a77514e9ea53d9bb78eb468f66f2c4fc10d151854ecc": "{\"filename\": \"file_A.txt\", \"filesize\": 508971, \"hash_content\": \"cd3c49840d6b5419e0fe71bd5329a590f89d42fec3a4c20c2e31e4031c117d3d\"}",
+    "066cf3aad5af10153c71f061220c3d7fcee8f0e82a72e9aa59a8625870056980": "{\"filename\": \"file_B.txt\", \"filesize\": 197367, \"hash_content\": \"e42d2755c5bf0fc5d1fbd6696f64073bdc0b6f9ad61a3df267d2455721994e3a\"}"
+}

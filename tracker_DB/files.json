@@ -1,0 +1,15 @@
+{
+    "297284d3545f90e0839ded12e299fc58d212edde64f86a0cd1bfda859d103f85": [
+        "{\"node_id\": 7, \"addr\": [\"127.0.0.1\", 6882], \"filename\": \"file_C.txt\", \"filesize\": 38157}",
+        "{\"node_id\": 6, \"addr\": [\"127.0.0.1\", 27687], \"filename\": \"file_C.txt\", \"filesize\": 38157}"
+    ],
+    "34d8b18b23c773dc8e6955761cc72267d349d6c7709655b949845a342e184650": [
+        "{\"node_id\": 6, \"addr\": [\"127.0.0.1\", 27687], \"filename\": \"file_D.txt\", \"filesize\": 9}"
+    ],
+    "f9e1d7012ad8d3fbb8b7a77514e9ea53d9bb78eb468f66f2c4fc10d151854ecc": [
+        "{\"node_id\": 6, \"addr\": [\"127.0.0.1\", 27687], \"filename\": \"file_A.txt\", \"filesize\": 508971}"
+    ],
+    "066cf3aad5af10153c71f061220c3d7fcee8f0e82a72e9aa59a8625870056980": [
+        "{\"node_id\": 6, \"addr\": [\"127.0.0.1\", 27687], \"filename\": \"file_B.txt\", \"filesize\": 197367}"
+    ]
+}
