@@ -1,6 +1,0 @@
-{
-    "d1681b242e1b85a3492925034d193244fcf1c91236f472f80fb51fe1523c7867": [
-        "{\"node_id\": 1, \"addr\": [\"127.0.0.1\", 62739], \"filename\": \"passwords.txt\", \"filesize\": 537}",
-        "{\"node_id\": 2, \"addr\": [\"127.0.0.1\", 49940], \"filename\": \"passwords.txt\", \"filesize\": 537}"
-    ]
-}

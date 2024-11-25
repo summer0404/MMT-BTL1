@@ -26,13 +26,16 @@ MAIN_TRACKER_PORT = config.constants.TRACKER_ADDR[1]
 TRACKER_PORT_LISTEN = config.constants.TRACKER_PORT_LISTEN
 ADDRESS_INFO_PATH = config.directory.tracker_db_dir + "addrs_backup.json"
 USERS_INFO_PATH=config.directory.tracker_db_dir + "users_backup.json"
+METAINFO_PATH = config.directory.tracker_db_dir + "metainfo_backup.json"
+NODES_INFO_PATH = config.directory.tracker_db_dir + "nodes_backup.json"
+FILES_INFO_PATH = config.directory.tracker_db_dir + "files_backup.json"
 class Tracker_Backup:
     def __init__(self):
+        self.init_tracker_db()
         self.file_owners_list = defaultdict(list)
+        self.metainfo_list = defaultdict(dict) #todo sửa
         self.send_freq_list = defaultdict(int)
         self.has_informed_tracker = defaultdict(bool)
-        self.nodes_info_path = config.directory.tracker_db_dir + "nodes_backup.json"
-        self.files_info_path = config.directory.tracker_db_dir + "files_backup.json"
         self.update_interval = 5  # Thời gian chờ giữa các lần yêu cầu cập nhật (giây)
         self.main_tracker_active = True  # Biến xác định trạng thái của tracker chính
         self.tracker_update_port = config.constants.tracker_update_port
@@ -41,18 +44,28 @@ class Tracker_Backup:
             with open(ADDRESS_INFO_PATH, 'w') as f:
                 json.dump({}, f)  # Làm rỗng file bằng cách ghi một dictionary trống
                 
-                          
+    def init_tracker_db(self):
+        if not os.path.exists(FILES_INFO_PATH):
+            with open(FILES_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(NODES_INFO_PATH):
+            with open(NODES_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(USERS_INFO_PATH):
+            with open(USERS_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(METAINFO_PATH):
+            with open(METAINFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(ADDRESS_INFO_PATH):
+            with open(ADDRESS_INFO_PATH, 'w') as f:
+                json.dump({}, f)                
     def load_users(self):
-        """Tải thông tin người dùng từ file JSON."""
-        try:
-            with open(USERS_INFO_PATH, 'r', encoding='utf-8') as f:
+        if os.path.exists(USERS_INFO_PATH):
+            with open(USERS_INFO_PATH, 'r') as f:
                 return json.load(f)
-        except json.JSONDecodeError:
-            logging.warning("User data file is empty or corrupt; loading empty user data.")
-            return {}  # Trả về dict rỗng nếu file trống hoặc không hợp lệ
-        except FileNotFoundError:
-            logging.warning("User data file not found; creating new user data.")
-            return {}  # Trả về dict rỗng nếu file không tồn tại
+        else:
+            return {}
     def save_users(self):
         """Save user data to JSON file."""
         with open(USERS_INFO_PATH, 'w') as f:
@@ -66,7 +79,8 @@ class Tracker_Backup:
             return {"status": "error", "message": "Username already exists"}
         
         hashed_password = self.hash_password(password)
-        self.users[username] = {"password": hashed_password}
+        node_id=self.count_user()+1
+        self.users[username] = {"password": hashed_password, "node_id": node_id}
         self.save_users()
         logging.info(f"User '{username}' registered successfully.")
         return {"status": "success", "message": "User registered successfully"}
@@ -77,11 +91,11 @@ class Tracker_Backup:
         
         hashed_password = self.hash_password(password)
         if self.users[username]["password"] == hashed_password:
+            node_id=self.users[username]["node_id"]
             logging.info(f"User '{username}' logged in successfully.")
-            return {"status": "success", "message": "Login successful"}
+            return {"status": "success", "message": "Login successful", "node_id": node_id}
         else:
-            return {"status": "error", "message": "Incorrect password"}
-                
+            return {"status": "error", "message": "Incorrect password"}             
     def add_file_owner(self, msg: dict): 
         
         entry = {
@@ -90,8 +104,18 @@ class Tracker_Backup:
             'filename': msg['filename'],
             'filesize': msg['filesize']
         }
+        metainfo = {
+            'filename': msg['filename'],
+            'filesize': msg['filesize'],
+            'hash_content': msg['hash_content']
+        }
         log_content = f"Node {msg['node_id']} owns {msg['infohash']} and is ready to send."
         logging.info(log_content)
+
+        self.metainfo_list[msg['infohash']]=json.dumps(metainfo)
+        if msg['infohash'] not in self.file_owners_list:
+            print(f"Infohash {msg['infohash']} not found in file_owners_list. Initializing it.")
+            self.file_owners_list[msg['infohash']] = []
 
         self.file_owners_list[msg['infohash']].append(json.dumps(entry))
         self.file_owners_list[msg['infohash']] = list(set(self.file_owners_list[msg['infohash']]))
@@ -103,7 +127,7 @@ class Tracker_Backup:
         self.save_db_as_json()
         
     def search_file(self, msg: dict):
-        log_content = f"Node {msg['node_id']} is searching for {msg['filename']}"
+        log_content = f"Node {msg['node_id']} is searching for infohash: {msg['infohash']}"
         logging.info(log_content)
 
         matched_entries = []
@@ -113,11 +137,14 @@ class Tracker_Backup:
                 matched_entries.append((entry, self.send_freq_list[entry['node_id']]))
         else:
             logging.info(f"File {msg['filename']} not found in torrent.")
-
+        filename=matched_entries[0][0]['filename']
+        filesize=matched_entries[0][0]['filesize']
         response = {
             'node_id': msg['node_id'],
             'search_result': matched_entries,
-            'filename': msg['filename']
+            'filename': filename,
+            'filesize': filesize,
+            'infohash': msg['infohash']
         }
         return response
 
@@ -179,14 +206,54 @@ class Tracker_Backup:
         if not os.path.exists(config.directory.tracker_db_dir):
             os.makedirs(config.directory.tracker_db_dir)
 
-        # Save nodes' information to nodes_backup.json
-        with open(self.nodes_info_path, 'w') as nodes_json:
-            json.dump({f'node{key}': value for key, value in self.send_freq_list.items()}, nodes_json, indent=4, sort_keys=True)
+        with open(NODES_INFO_PATH, 'w') as nodes_json:
+            json.dump(self.send_freq_list, nodes_json, indent=4)
 
-        # Save files' information to files_backup.json
-        with open(self.files_info_path, 'w') as files_json:
-            json.dump(self.file_owners_list, files_json, indent=4, sort_keys=True)
+        with open(FILES_INFO_PATH, 'w') as files_json:
+            json.dump(self.file_owners_list, files_json, indent=4)
 
+        with open(METAINFO_PATH, 'w') as meta_json:
+            json.dump(self.metainfo_list, meta_json, indent=4)
+    
+        
+    def format_filesize(self, filesize: int) -> str:
+        """
+        Format filesize in bytes to human-readable format
+        """
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if filesize < 1024:
+                return f"{filesize:.2f} {unit}"
+            filesize /= 1024
+
+    def search_with_keyword(self, keyword: str) -> list:
+        """
+        Search files by keyword in filename or comment
+        Returns list of matching file information
+        """
+        matched_files = []
+        try:
+            for infohash, metainfo in self.metainfo_list.items():
+                metainfo = json.loads(metainfo)
+                if keyword.lower() in metainfo['filename'].lower() :
+                    filesize=self.format_filesize(metainfo['filesize'])
+                    matched_files.append({
+                        'infohash': infohash,
+                        'filename': metainfo['filename'],
+                        'filesize': filesize,
+                    })
+        except Exception as e:
+            logging.error(f"Error searching for keyword: {e}")
+        return matched_files
+
+    def get_metainfo(self, infohash):
+        """
+        Get metainfo for a given infohash
+        """
+        if infohash in self.metainfo_list:
+            return self.metainfo_list[infohash]
+        else:
+            return []
+    
     def handle_node_request(self, request):
         msg = request.json
         mode = msg['mode']
@@ -194,9 +261,10 @@ class Tracker_Backup:
         if mode == 'OWN':
             self.add_file_owner(msg=msg)
             return {"status": "success", "message": "File owner added"}
-        elif mode == 'NEED':
-            return self.search_file(msg=msg)
-        
+        # elif mode == 'NEED':
+        #     return self.search_file(msg=msg)
+        # elif mode == 'META':
+        #     return self.get_metainfo(infohash=msg['infohash'])
         elif mode == 'LOGIN':
             # Xử lý đăng nhập
             username = msg.get('username')
@@ -213,25 +281,37 @@ class Tracker_Backup:
                 return self.register_user(username, password)
             else:
                 return {"status": "error", "message": "Username and password required"}
-        elif mode == 'EXIT':
+        elif mode == 'EXIT': 
             addr=(msg['addr'][0], msg['listen_port'])
             self.remove_node(node_id=msg['node_id'], addr=tuple(addr))
             logging.info(f"Node {msg['node_id']} exited the torrent intentionally.")
             return {"status": "success", "message": "Node exited"}
+        elif mode =='SEARCH':
+            return self.search_with_keyword(msg['keyword'])
+        
+        elif mode == "TORRENT":
+            return self.search_file(msg=msg)
+
         elif mode == 'ENTER':
             self.update_db_enter(msg=msg)
             addr = {f'node{msg["node_id"]}': (msg['addr'][0], msg['listen_tracker_port'])}
+
+            # Tải dữ liệu hiện có từ addrs.json nếu file tồn tại
             if os.path.exists(ADDRESS_INFO_PATH):
                 with open(ADDRESS_INFO_PATH, 'r') as addrs_json:
                     addresses = json.load(addrs_json)
             else:
                 addresses = {}
+
+            # Thêm địa chỉ mới vào danh sách địa chỉ hiện có
             addresses.update(addr)
+
+            # Ghi lại toàn bộ dữ liệu vào addrs.json
             with open(ADDRESS_INFO_PATH, 'w') as addrs_json:
                 json.dump(addresses, addrs_json, indent=4)
 
             return {"status": "success", "message": "Success enter torrent"}
-    
+   
     def is_tracker_active(self):
         """Checks if the main tracker is online."""
         try:
@@ -267,17 +347,24 @@ class Tracker_Backup:
                         logging.info("Received data from main tracker.")
                         try:
                             update = json.loads(data.decode())  # Giải mã JSON từ phản hồi
-                            self.file_owners_list.update(update.get('file_owners_list', {}))
-                            received_send_freq_list = update.get('send_freq_list', {})
-                            self.send_freq_list.update({key.replace('node', ''): value for key, value in received_send_freq_list.items()})
+                            # Lưu thông tin user vào file backup JSON nếu có
+                            user_list = update.get('user_list', {})
+                            addrs_list=update.get('addrs_list', {})
+                            self.send_freq_list=update.get('send_freq_list', {})
+                            self.file_owners_list=update.get('file_owners_list', {})
+                            self.metainfo_list=update.get('metainfo_list', {})
                             self.save_db_as_json()
 
-                            # Lưu thông tin user vào file backup JSON nếu có
-                            user_data = update.get('user_list', {})
-                            if user_data:
+                            if user_list:
                                 with open(USERS_INFO_PATH, 'w', encoding='utf-8') as backup_file:
-                                    json.dump(user_data, backup_file, ensure_ascii=False, indent=4)
+                                    json.dump(user_list, backup_file, ensure_ascii=False, indent=4)
+                            if addrs_list:
+                                with open(ADDRESS_INFO_PATH, 'w', encoding='utf-8') as backup_file:
+                                    json.dump(addrs_list, backup_file, ensure_ascii=False, indent=4)
+
                             logging.info("Data successfully updated from main tracker.")
+
+
                         except json.JSONDecodeError as e:
                             logging.error(f"Failed to decode response: {e}")
                     else:

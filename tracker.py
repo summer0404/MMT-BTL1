@@ -32,6 +32,7 @@ TRACKER_PORT_LISTEN = 23456
 
 class Tracker:
     def __init__(self, root):
+        self.init_tracker_db()
         self.file_owners_list = defaultdict(list)
         self.metainfo_list = defaultdict(dict) #todo sửa
         self.send_freq_list = defaultdict(int)
@@ -40,7 +41,7 @@ class Tracker:
         # Xóa nội dung trong `addrs.json` khi khởi động nếu file đã tồn tại
         if os.path.exists(ADDRESS_INFO_PATH):
             with open(ADDRESS_INFO_PATH, 'w') as f:
-                json.dump({}, f)  # Làm rỗng file bằng cách ghi một dictionary trống
+                json.dump({}, f)  # Làm rỗng file bằng cách ghi một dictionary trống              
         #for UI==========================
         self.root = root
         self.root.title("Tracker HTTP Interface")
@@ -61,6 +62,22 @@ class Tracker:
         self.ping_result = tk.Label(root, text="", font=("Arial", 12))
         self.ping_result.pack(pady=5)
 
+    def init_tracker_db(self):
+        if not os.path.exists(FILES_INFO_PATH):
+            with open(FILES_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(NODES_INFO_PATH):
+            with open(NODES_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(USERS_INFO_PATH):
+            with open(USERS_INFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(METAINFO_PATH):
+            with open(METAINFO_PATH, 'w') as f:
+                json.dump({}, f)
+        if not os.path.exists(ADDRESS_INFO_PATH):
+            with open(ADDRESS_INFO_PATH, 'w') as f:
+                json.dump({}, f)
     #discover
     def discover(self):
         try:
@@ -172,6 +189,9 @@ class Tracker:
 
         self.metainfo_list[msg['infohash']]=json.dumps(metainfo)
         # self.metainfo_list[msg['infohash']] = list(set(self.metainfo_list[msg['infohash']]))
+        if msg['infohash'] not in self.file_owners_list:
+            print(f"Infohash {msg['infohash']} not found in file_owners_list. Initializing it.")
+            self.file_owners_list[msg['infohash']] = []
         self.file_owners_list[msg['infohash']].append(json.dumps(entry))
         self.file_owners_list[msg['infohash']] = list(set(self.file_owners_list[msg['infohash']]))
         self.send_freq_list[msg['node_id']] += 1
@@ -262,7 +282,7 @@ class Tracker:
             os.makedirs(config.directory.tracker_db_dir)
 
         with open(NODES_INFO_PATH, 'w') as nodes_json:
-            json.dump({f'node{key}': value for key, value in self.send_freq_list.items()}, nodes_json, indent=4)
+            json.dump(self.send_freq_list, nodes_json, indent=4)
 
         with open(FILES_INFO_PATH, 'w') as files_json:
             json.dump(self.file_owners_list, files_json, indent=4)
@@ -375,18 +395,17 @@ class Tracker:
                     break
                 
                 # Đọc dữ liệu từ JSON
-                with open(NODES_INFO_PATH, 'r') as nodes_file:
-                    nodes_data = json.load(nodes_file)
-                with open(FILES_INFO_PATH, 'r') as files_file:
-                    files_data = json.load(files_file)
-                with open(USERS_INFO_PATH, 'r') as users_file:
-                    users_data = json.load(users_file)
-                with open(METAINFO_PATH, 'r') as meta_file:
-                    meta_data = json.load(meta_file)
+                with open(USERS_INFO_PATH, 'r') as f:
+                    users_data=json.load(f)
+                with open(ADDRESS_INFO_PATH, 'r') as f:
+                    addrs_list=json.load(f)
+
                 update_data = {
-                    "file_owners_list": files_data,
-                    "send_freq_list": nodes_data,
-                    "user_list": users_data
+                    "file_owners_list": self.file_owners_list,
+                    "send_freq_list": self.send_freq_list,
+                    "user_list": users_data,
+                    "metainfo_list": self.metainfo_list,
+                    "addrs_list": addrs_list
                 }
 
                 conn.sendall(json.dumps(update_data).encode())
