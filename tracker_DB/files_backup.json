@@ -1,0 +1,8 @@
+{
+    "d1681b242e1b85a3492925034d193244fcf1c91236f472f80fb51fe1523c7867": [
+        "{\"node_id\": 1, \"addr\": [\"127.0.0.1\", 49569], \"filename\": \"passwords.txt\", \"filesize\": 537}"
+    ],
+    "606d18e047530cdceac6662031d3b166d31d6f7231b49a93563a7e708cc788b5": [
+        "{\"node_id\": 1, \"addr\": [\"127.0.0.1\", 49569], \"filename\": \"subdomains-wodlist.txt\", \"filesize\": 6861626}"
+    ]
+}
