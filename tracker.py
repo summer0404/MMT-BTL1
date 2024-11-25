@@ -116,6 +116,9 @@ class Tracker:
                 return json.load(f)
         else:
             return {}
+        
+    def count_user(self):
+        return len(self.users)
 
     def save_users(self):
         """Save user data to JSON file."""
@@ -132,7 +135,8 @@ class Tracker:
             return {"status": "error", "message": "Username already exists"}
         
         hashed_password = self.hash_password(password)
-        self.users[username] = {"password": hashed_password}
+        node_id=self.count_user()+1
+        self.users[username] = {"password": hashed_password, "node_id": node_id}
         self.save_users()
         logging.info(f"User '{username}' registered successfully.")
         return {"status": "success", "message": "User registered successfully"}
@@ -144,8 +148,9 @@ class Tracker:
         
         hashed_password = self.hash_password(password)
         if self.users[username]["password"] == hashed_password:
+            node_id=self.users[username]["node_id"]
             logging.info(f"User '{username}' logged in successfully.")
-            return {"status": "success", "message": "Login successful"}
+            return {"status": "success", "message": "Login successful", "node_id": node_id}
         else:
             return {"status": "error", "message": "Incorrect password"}
 
@@ -193,7 +198,8 @@ class Tracker:
             'node_id': msg['node_id'],
             'search_result': matched_entries,
             'filename': filename,
-            'filesize': filesize
+            'filesize': filesize,
+            'infohash': msg['infohash']
         }
         return response
 

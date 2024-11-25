@@ -1,1 +1,10 @@
-{}
+{
+    "khoi": {
+        "password": "26c0b9c67268ea0882d434f8ca083ba5f5770ab14d12a218534ebf8a27527df1",
+        "node_id": 1
+    },
+    "nghi": {
+        "password": "c8c30ae87ca9d493ccc902e0b291771056873fa80448714b690182d8e981bd7b",
+        "node_id": 2
+    }
+}

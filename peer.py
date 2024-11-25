@@ -12,6 +12,7 @@ from utils import *
 import mmap
 import warnings
 import tkinter as tk
+import shutil
 from tkinter import messagebox, scrolledtext, filedialog
 from flask import Flask, jsonify
 import logging
@@ -68,15 +69,14 @@ class Node:
         self.app.run(host="127.0.0.1", port=self.listen_tracker_port, debug=False, use_reloader=False)
 
     def login(self):
-        node_id = self.node_id_entry.get()
         username = self.username_entry.get()
         password = self.password_entry.get()
 
-        if not node_id or not username or not password:
+        if not username or not password:
             messagebox.showerror("Error", "Please enter node ID, username, and password.")
             return
 
-        self.node_id = int(node_id)  # Set the node ID
+        # self.node_id = int(node_id)  # Set the node ID
 
         # Gửi yêu cầu đăng nhập đến tracker
         payload = {
@@ -89,6 +89,7 @@ class Node:
         if response.status_code == 200:
             response_data = response.json()
             if response_data.get('status') == 'success':
+                self.node_id = response_data.get('node_id')
                 if self.node_id is not None:
                     messagebox.showinfo("Login", "Login successful!")
                     self.initialize_node()  # Khởi tạo node và chuyển sang giao diện chính
@@ -135,20 +136,17 @@ class Node:
         login_frame = tk.Frame(self.root)
         login_frame.pack(pady=20)
 
-        tk.Label(login_frame, text="Node ID:").grid(row=0, column=0, padx=5, pady=5)
-        self.node_id_entry = tk.Entry(login_frame)
-        self.node_id_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Label(login_frame, text="Username:").grid(row=1, column=0, padx=5, pady=5)
+        tk.Label(login_frame, text="Username:").grid(row=0, column=0, padx=5, pady=5)
         self.username_entry = tk.Entry(login_frame)
-        self.username_entry.grid(row=1, column=1, padx=5, pady=5)
+        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
 
-        tk.Label(login_frame, text="Password:").grid(row=2, column=0, padx=5, pady=5)
+        tk.Label(login_frame, text="Password:").grid(row=1, column=0, padx=5, pady=5)
         self.password_entry = tk.Entry(login_frame, show="*")
-        self.password_entry.grid(row=2, column=1, padx=5, pady=5)
+        self.password_entry.grid(row=1, column=1, padx=5, pady=5)
 
-        tk.Button(login_frame, text="Login", command=self.login).grid(row=3, column=0, padx=5, pady=5)
-        tk.Button(login_frame, text="Register", command=self.register).grid(row=3, column=1, padx=5, pady=5)
+        tk.Button(login_frame, text="Login", command=self.login).grid(row=2, column=0, padx=5, pady=5)
+        tk.Button(login_frame, text="Register", command=self.register).grid(row=2, column=1, padx=5, pady=5)
 
     def initialize_node(self):
         """Khởi tạo node sau khi đăng nhập thành công và hiển thị giao diện chính."""
@@ -228,6 +226,7 @@ class Node:
         self.filename = tk.Entry(upload_content, width=40)
         self.filename.grid(row=0, column=1, padx=5, pady=5)
         tk.Button(upload_content, text="Upload", command=lambda: self.set_send_mode(self.filename.get())).grid(row=0, column=2, padx=5, pady=5)
+        tk.Button(upload_content, text="Browse from computer", command=self.browse_file).grid(row=0, column=3, padx=5, pady=5)
 
         # Section: Download Panel
         download_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
@@ -437,7 +436,28 @@ class Node:
             print(f"Received data: {data.decode()}")  # Hiển thị dữ liệu nhận được
             self.handle_requests(conn=conn, msg=data.decode(), addr=addr)  # Gọi hàm handle_requests để xử lý yêu cầu
 
+    def browse_file(self):
+        file_path = filedialog.askopenfilename(title="Select file to upload")
+        filename = os.path.basename(file_path)
+        des_path = f"{config.directory.node_files_dir}node{self.node_id}/{filename}"
+        try:
+            shutil.copy(file_path, des_path)
+            self.files.append(filename)
+        except Exception as e:
+            print(f"Failed to copy file {filename} to {des_path}: {e}")
+        file_size = os.path.getsize(des_path)
+        hash_content = self.hash_file(des_path)
+        meta_info = {
+            'filename': filename,
+            'filesize': file_size,
+            'hash_content': hash_content
+        }
+        info_hash = self.hash_meta_info(meta_info)
+        self.files.append(filename)
+        self.metainfo_list[info_hash] = meta_info
+        self.set_send_mode(filename)
     def set_send_mode(self, filename):
+        self.fetch_owned_files()
         if filename not in self.files:
             self.log_message(f"You don't have {filename}")
             return
@@ -731,7 +751,23 @@ class Node:
             thread = Thread(target=self.download_file, args=(file,))
             thread.daemon = True  # Make thread a daemon to prevent blocking the main thread
             thread.start()
-
+    def format_search_output(self,list):
+        output=''
+        for file in list:
+            output+=f"Filename: {file['filename']}\n"
+            output+=f"Filesize: {file['filesize']}\n"
+            output+=f"Infohash: {file['infohash']}\n"
+        return output
+    def format_torrent_output(self,data):
+        output=''
+        output+=f"Filename: {data['filename']}\n"
+        output+=f"Filesize: {data['filesize']}\n"
+        output+=f"Infohash: {data['infohash']}\n"
+        output+="Search Results:\n"
+        for result in data['search_result']:
+            output+=f"\tNode ID: {result[0]['node_id']}"
+            output+=f" Address: {result[0]['addr']}\n"
+        return output
     def download_file(self, infohash: str):
         if infohash in self.metainfo_list:
             log_content = f"You already have this file!"
@@ -742,7 +778,6 @@ class Node:
             self.log_message(log_content)
 
             tracker_response = self.find_owners(infohash)
-            self.log_message(f"Tracker response: {tracker_response}")
 
             if tracker_response is None:
                 self.log_message("No response from tracker!")
@@ -770,7 +805,8 @@ class Node:
             response = requests.post(PROXY_ADDRESS, json=payload)
             if response.status_code == 200:
                 tracker_msg = response.json()  # Chuyển đổi phản hồi từ JSON sang dict
-                self.log_message(f"Tracker response: {tracker_msg}")  # In ra phản hồi từ tracker
+                tracker_response=self.format_search_output(tracker_msg)
+                self.log_message(f"[+] Tracker response:\n{tracker_response}")  # In ra phản hồi từ tracker
                 return tracker_msg
             else:
                 self.log_message(f"Failed to search torrent for {keyword}.")
@@ -793,7 +829,8 @@ class Node:
             response = requests.post(PROXY_ADDRESS, json=payload)
             if response.status_code == 200:
                 tracker_msg = response.json()  # Chuyển đổi phản hồi từ JSON sang dict
-                self.log_message(f"Tracker response: {tracker_msg}")  # In ra phản hồi từ tracker
+                tracker_response=self.format_torrent_output(tracker_msg)
+                self.log_message(f"[+] Tracker response:\n{tracker_response}")  # In ra phản hồi từ tracker
                 return tracker_msg
             else:
                 self.log_message(f"Failed to search torrent for {info_hash}.")
@@ -811,33 +848,34 @@ class Node:
                 self.log_message(f"Added {info_hash} to download queue.")
 
 
-    def search_torrent(self, filename: str) -> dict:
-        # Gửi yêu cầu HTTP đến tracker để tìm kiếm file
+    # def search_torrent(self, filename: str) -> dict:
+    #     # Gửi yêu cầu HTTP đến tracker để tìm kiếm file
   
-        hashed_filename = self.hash_filename(filename)
-        payload = {
-            'node_id': self.node_id,
-            'mode': 'NEED',
-            'infohash': hashed_filename,
-            'filename': filename,
-        }
+    #     hashed_filename = self.hash_filename(filename)
+    #     payload = {
+    #         'node_id': self.node_id,
+    #         'mode': 'NEED',
+    #         'infohash': hashed_filename,
+    #         'filename': filename,
+    #     }
         
-        #mới cập nhật
-        if filename and filename not in self.file_entry_list:
-            self.file_entry_list.append(filename)  # Thêm file vào danh sách nếu chưa có
+    #     #mới cập nhật
+    #     if filename and filename not in self.file_entry_list:
+    #         self.file_entry_list.append(filename)  # Thêm file vào danh sách nếu chưa có
         
-        try:
-            response = requests.post(PROXY_ADDRESS, json=payload)
-            if response.status_code == 200:
-                tracker_msg = response.json()  # Chuyển đổi phản hồi từ JSON sang dict
-                self.log_message(f"Tracker response: {tracker_msg}")  # In ra phản hồi từ tracker
-                return tracker_msg
-            else:
-                self.log_message(f"Failed to search torrent for {filename}.")
-                return {}
-        except Exception as e:
-            self.log_message(f"Error while searching torrent: {e}")
-            return {}
+    #     try:
+    #         response = requests.post(PROXY_ADDRESS, json=payload)
+    #         if response.status_code == 200:
+    #             tracker_msg = response.json()  # Chuyển đổi phản hồi từ JSON sang dict
+    #             tracker_response=self.format_torrent_output(tracker_msg)
+    #             self.log_message(f"Tracker response:\n{tracker_response}")  # In ra phản hồi từ tracker
+    #             return tracker_msg
+    #         else:
+    #             self.log_message(f"Failed to search torrent for {filename}.")
+    #             return {}
+    #     except Exception as e:
+    #         self.log_message(f"Error while searching torrent: {e}")
+    #         return {}
 
     def fetch_owned_files(self):
         node_files_dir = config.directory.node_files_dir + 'node' + str(self.node_id)
@@ -893,7 +931,8 @@ class Node:
 
     def inform_tracker_periodically(self, interval: int):
         log_content = f"I informed the tracker that I'm still alive in the torrent!"
-        self.log_message(log_content)
+        # self.log_message(log_content)
+        print(log_content)
 
         # Inform tracker via HTTP
         

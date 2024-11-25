@@ -56,6 +56,4 @@ def log(node_id: int, content: str, is_tracker=False) -> None:
             f.close()
 
 
-# search with keyword
-
 
