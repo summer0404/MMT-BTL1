@@ -7,6 +7,7 @@ import time
 import requests
 import logging
 import hashlib
+import bencodepy
 from utils import *
 import warnings
 warnings.filterwarnings("ignore")
@@ -24,11 +25,11 @@ TRACKER_PORT = config.constants.TRACKER_ADDR_BACKUP[1]
 MAIN_TRACKER_IP = config.constants.TRACKER_ADDR[0]
 MAIN_TRACKER_PORT = config.constants.TRACKER_ADDR[1]
 TRACKER_PORT_LISTEN = config.constants.TRACKER_PORT_LISTEN
-ADDRESS_INFO_PATH = config.directory.tracker_db_dir + "addrs_backup.json"
-USERS_INFO_PATH=config.directory.tracker_db_dir + "users_backup.json"
-METAINFO_PATH = config.directory.tracker_db_dir + "metainfo_backup.json"
-NODES_INFO_PATH = config.directory.tracker_db_dir + "nodes_backup.json"
-FILES_INFO_PATH = config.directory.tracker_db_dir + "files_backup.json"
+TRACKER_FOLDER = config.directory.backup_tracker_db_dir
+ADDRESS_INFO_PATH = config.directory.backup_tracker_db_dir + "addrs_backup.json"
+METAINFO_PATH = config.directory.backup_tracker_db_dir + "metainfo_backup.json"
+NODES_INFO_PATH = config.directory.backup_tracker_db_dir + "nodes_backup.json"
+FILES_INFO_PATH = config.directory.backup_tracker_db_dir + "files_backup.json"
 class Tracker_Backup:
     def __init__(self):
         self.init_tracker_db()
@@ -36,94 +37,74 @@ class Tracker_Backup:
         self.metainfo_list = defaultdict(dict) #todo sửa
         self.send_freq_list = defaultdict(int)
         self.has_informed_tracker = defaultdict(bool)
+        self.users_online = 0
         self.update_interval = 5  # Thời gian chờ giữa các lần yêu cầu cập nhật (giây)
         self.main_tracker_active = True  # Biến xác định trạng thái của tracker chính
         self.tracker_update_port = config.constants.tracker_update_port
-        self.users = self.load_users()
         if os.path.exists(ADDRESS_INFO_PATH):
             with open(ADDRESS_INFO_PATH, 'w') as f:
                 json.dump({}, f)  # Làm rỗng file bằng cách ghi một dictionary trống
                 
     def init_tracker_db(self):
+        if not os.path.exists(TRACKER_FOLDER):
+            os.makedirs(TRACKER_FOLDER)
         if not os.path.exists(FILES_INFO_PATH):
             with open(FILES_INFO_PATH, 'w') as f:
                 json.dump({}, f)
         if not os.path.exists(NODES_INFO_PATH):
             with open(NODES_INFO_PATH, 'w') as f:
                 json.dump({}, f)
-        if not os.path.exists(USERS_INFO_PATH):
-            with open(USERS_INFO_PATH, 'w') as f:
-                json.dump({}, f)
         if not os.path.exists(METAINFO_PATH):
             with open(METAINFO_PATH, 'w') as f:
                 json.dump({}, f)
         if not os.path.exists(ADDRESS_INFO_PATH):
             with open(ADDRESS_INFO_PATH, 'w') as f:
-                json.dump({}, f)                
-    def load_users(self):
-        if os.path.exists(USERS_INFO_PATH):
-            with open(USERS_INFO_PATH, 'r') as f:
-                return json.load(f)
-        else:
-            return {}
-    def save_users(self):
-        """Save user data to JSON file."""
-        with open(USERS_INFO_PATH, 'w') as f:
-            json.dump(self.users, f, indent=4)
-    def hash_password(self, password):
-        """Hash a password for secure storage."""
-        return hashlib.sha256(password.encode()).hexdigest()            
-    def register_user(self, username, password):
-        """Register a new user."""
-        if username in self.users:
-            return {"status": "error", "message": "Username already exists"}
-        
-        hashed_password = self.hash_password(password)
-        node_id=self.count_user()+1
-        self.users[username] = {"password": hashed_password, "node_id": node_id}
-        self.save_users()
-        logging.info(f"User '{username}' registered successfully.")
-        return {"status": "success", "message": "User registered successfully"}
-    def authenticate_user(self, username, password):
-        """Authenticate an existing user."""
-        if username not in self.users:
-            return {"status": "error", "message": "Username not found"}
-        
-        hashed_password = self.hash_password(password)
-        if self.users[username]["password"] == hashed_password:
-            node_id=self.users[username]["node_id"]
-            logging.info(f"User '{username}' logged in successfully.")
-            return {"status": "success", "message": "Login successful", "node_id": node_id}
-        else:
-            return {"status": "error", "message": "Incorrect password"}             
+                json.dump({}, f)   
+    def write_torrent(self,torrent_data, filename):
+        with open(filename, 'wb') as f:
+            f.write(torrent_data)             
+    
     def add_file_owner(self, msg: dict): 
-        
+        decoded_torrent=bencodepy.decode(msg['torrent_data'].encode('latin1'))
+        torrent_data=bencodepy.encode(decoded_torrent)
+        info=decoded_torrent[b'info']
+        infohash=hashlib.sha1(bencodepy.encode(info)).digest().hex()
+        filename=info[b'name'].decode('utf-8')
+        filesize=info[b'length']
+        piece_length=info[b'piece length']
+        pieces=info[b'pieces']
+        # self.write_torrent(torrent_data, filename+'.torrent')
+
         entry = {
             'node_id': msg['node_id'],
             'addr': (msg['addr'][0], msg['listen_port']),
-            'filename': msg['filename'],
-            'filesize': msg['filesize']
+            'filename': filename,
+            'filesize': filesize
         }
-        metainfo = {
-            'filename': msg['filename'],
-            'filesize': msg['filesize'],
-            'hash_content': msg['hash_content']
+        metainfo={
+            'filename': filename,
+            'filesize': filesize,
+            'piece_length': piece_length,
+            'pieces': pieces.hex()
         }
-        log_content = f"Node {msg['node_id']} owns {msg['infohash']} and is ready to send."
+        
+        log_content = f"Node {msg['node_id']} owns {infohash} and is ready to send."
         logging.info(log_content)
 
-        self.metainfo_list[msg['infohash']]=json.dumps(metainfo)
-        if msg['infohash'] not in self.file_owners_list:
-            print(f"Infohash {msg['infohash']} not found in file_owners_list. Initializing it.")
-            self.file_owners_list[msg['infohash']] = []
-
-        self.file_owners_list[msg['infohash']].append(json.dumps(entry))
-        self.file_owners_list[msg['infohash']] = list(set(self.file_owners_list[msg['infohash']]))
+        self.metainfo_list[infohash] = json.dumps(metainfo)
+        # self.metainfo_list[msg['infohash']] = list(set(self.metainfo_list[msg['infohash']]))
+        if infohash not in self.file_owners_list:
+            print(f"Infohash {infohash} not found in file_owners_list. Initializing it.")
+            self.file_owners_list[infohash] = []
+        self.file_owners_list[infohash].append(json.dumps(entry))
+        self.file_owners_list[infohash] = list(set(self.file_owners_list[infohash]))
+        print(self.send_freq_list)
+        print(msg['node_id'])
         self.send_freq_list[msg['node_id']] += 1
         self.save_db_as_json()
-
-    def update_db_enter(self, msg: dict):
-        self.send_freq_list[msg["node_id"]] = 0
+ 
+    def update_db_enter(self, msg: dict, node_id: int):
+        self.send_freq_list[node_id] = 0
         self.save_db_as_json()
         
     def search_file(self, msg: dict):
@@ -203,8 +184,8 @@ class Tracker_Backup:
         Timer(interval, self.check_nodes_periodically, args=(interval,)).start()
 
     def save_db_as_json(self):
-        if not os.path.exists(config.directory.tracker_db_dir):
-            os.makedirs(config.directory.tracker_db_dir)
+        if not os.path.exists(config.directory.backup_tracker_db_dir):
+            os.makedirs(config.directory.backup_tracker_db_dir)
 
         with open(NODES_INFO_PATH, 'w') as nodes_json:
             json.dump(self.send_freq_list, nodes_json, indent=4)
@@ -240,20 +221,13 @@ class Tracker_Backup:
                         'infohash': infohash,
                         'filename': metainfo['filename'],
                         'filesize': filesize,
+                        'piece_length': metainfo['piece_length'],
+                        'pieces': metainfo['pieces']
                     })
         except Exception as e:
             logging.error(f"Error searching for keyword: {e}")
         return matched_files
 
-    def get_metainfo(self, infohash):
-        """
-        Get metainfo for a given infohash
-        """
-        if infohash in self.metainfo_list:
-            return self.metainfo_list[infohash]
-        else:
-            return []
-    
     def handle_node_request(self, request):
         msg = request.json
         mode = msg['mode']
@@ -265,22 +239,22 @@ class Tracker_Backup:
         #     return self.search_file(msg=msg)
         # elif mode == 'META':
         #     return self.get_metainfo(infohash=msg['infohash'])
-        elif mode == 'LOGIN':
-            # Xử lý đăng nhập
-            username = msg.get('username')
-            password = msg.get('password')
-            if username and password:
-                return self.authenticate_user(username, password)
-            else:
-                return {"status": "error", "message": "Username and password required"}
-        elif mode == 'REGISTER':
-            # Xử lý đăng ký
-            username = msg.get('username')
-            password = msg.get('password')
-            if username and password:
-                return self.register_user(username, password)
-            else:
-                return {"status": "error", "message": "Username and password required"}
+        # elif mode == 'LOGIN':
+        #     # Xử lý đăng nhập
+        #     username = msg.get('username')
+        #     password = msg.get('password')
+        #     if username and password:
+        #         return self.authenticate_user(username, password)
+        #     else:
+        #         return {"status": "error", "message": "Username and password required"}
+        # elif mode == 'REGISTER':
+        #     # Xử lý đăng ký
+        #     username = msg.get('username')
+        #     password = msg.get('password')
+        #     if username and password:
+        #         return self.register_user(username, password)
+        #     else:
+        #         return {"status": "error", "message": "Username and password required"}
         elif mode == 'EXIT': 
             addr=(msg['addr'][0], msg['listen_port'])
             self.remove_node(node_id=msg['node_id'], addr=tuple(addr))
@@ -293,8 +267,10 @@ class Tracker_Backup:
             return self.search_file(msg=msg)
 
         elif mode == 'ENTER':
-            self.update_db_enter(msg=msg)
-            addr = {f'node{msg["node_id"]}': (msg['addr'][0], msg['listen_tracker_port'])}
+            node_id=self.users_online+1
+            self.users_online+=1
+            self.update_db_enter(msg,node_id)
+            addr = {f'node{node_id}': (msg['addr'][0], msg['listen_tracker_port'])}
 
             # Tải dữ liệu hiện có từ addrs.json nếu file tồn tại
             if os.path.exists(ADDRESS_INFO_PATH):
@@ -305,13 +281,13 @@ class Tracker_Backup:
 
             # Thêm địa chỉ mới vào danh sách địa chỉ hiện có
             addresses.update(addr)
-
+            
             # Ghi lại toàn bộ dữ liệu vào addrs.json
             with open(ADDRESS_INFO_PATH, 'w') as addrs_json:
                 json.dump(addresses, addrs_json, indent=4)
 
-            return {"status": "success", "message": "Success enter torrent"}
-   
+            return {"status": "success", "message": "Success enter torrent", "node_id": node_id}
+
     def is_tracker_active(self):
         """Checks if the main tracker is online."""
         try:
@@ -348,16 +324,12 @@ class Tracker_Backup:
                         try:
                             update = json.loads(data.decode())  # Giải mã JSON từ phản hồi
                             # Lưu thông tin user vào file backup JSON nếu có
-                            user_list = update.get('user_list', {})
                             addrs_list=update.get('addrs_list', {})
-                            self.send_freq_list=update.get('send_freq_list', {})
-                            self.file_owners_list=update.get('file_owners_list', {})
-                            self.metainfo_list=update.get('metainfo_list', {})
+                            self.send_freq_list = defaultdict(int, update.get('send_freq_list', {}))
+                            self.file_owners_list=defaultdict(list,update.get('file_owners_list', {}))
+                            self.metainfo_list=defaultdict(dict,update.get('metainfo_list', {}))
+                            self.users_online = update.get('users_online', 0)
                             self.save_db_as_json()
-
-                            if user_list:
-                                with open(USERS_INFO_PATH, 'w', encoding='utf-8') as backup_file:
-                                    json.dump(user_list, backup_file, ensure_ascii=False, indent=4)
                             if addrs_list:
                                 with open(ADDRESS_INFO_PATH, 'w', encoding='utf-8') as backup_file:
                                     json.dump(addrs_list, backup_file, ensure_ascii=False, indent=4)

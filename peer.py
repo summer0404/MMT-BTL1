@@ -708,19 +708,18 @@ class Node:
         owners = sorted(owners, key=lambda x: x[1], reverse=True)
 
         to_be_used_owners = owners[:config.constants.MAX_SPLITTNES_RATE]
-        # 1. first ask the size of the file from peers
+        # first ask the size of the file from peers
         # log_content = f"You are going to download {filename} with {file_size} bytes from Node(s) {[o[0]['node_id'] for o in to_be_used_owners]}"
         # self.log_message(log_content)
 
 
         # Start timing the download process
         start_time = time.time()
-
-        # 2. Now, we know the size, let's split it equally among peers to download chunks of it from them
+# split it equally among peers
         step = file_size / len(to_be_used_owners)
         chunks_ranges = [(round(step*i), round(step*(i+1))) for i in range(len(to_be_used_owners))]
 
-        # 3. Create a thread for each neighbor peer to get a chunk from it
+    # create a thread for each neighbor peer to get a chunk from it
         self.downloaded_files[filename] = []
         neighboring_peers_threads = []
         for idx, obj in enumerate(to_be_used_owners):
@@ -739,19 +738,16 @@ class Node:
         self.log_message(log_content)
         # print(log_content)
         
-        # 4. Now we have downloaded all the chunks of the file. It's time to sort them.
         sorted_chunks = self.sort_downloaded_chunks(filename=filename)
         
         log_content = f"[+] Sorted all the chunks of {filename}"
         self.log_message(log_content)
 
-        # Calculate and log the time taken for the download process
         end_time = time.time()
         download_duration = end_time - start_time
         log_content = f"[+] Download finished. Time {download_duration} seconds"
         self.log_message(log_content)
         
-        # 5. Finally, we assemble the chunks to re-build the file
         total_file = []
         file_path = f"{config.directory.node_files_dir}node{self.node_id}/{filename}"
         for chunk in sorted_chunks:
@@ -764,7 +760,6 @@ class Node:
         self.log_message(log_content)
         self.files.append(filename)
         
-        # 6. Sau khi tải xong gửi thông báo đến tracker, sẵn sàng chia sẽ tệp vừa tải
         self.set_send_mode(filename)
         # payload = {
         #     'node_id': self.node_id,

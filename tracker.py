@@ -1,12 +1,11 @@
 import os
 import socket
-from threading import Thread, Timer
+from threading import Thread, Timer, Event  
 from collections import defaultdict
 import json
 import logging
 import warnings
 import hashlib
-import threading
 from utils import *
 from flask import Flask, request, jsonify
 warnings.filterwarnings("ignore")
@@ -21,6 +20,7 @@ config = Config.from_json(CFG)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Đường dẫn các file JSON
+TRACKER_FOLDER = config.directory.tracker_db_dir
 METAINFO_PATH = config.directory.tracker_db_dir + "metainfo.json"
 NODES_INFO_PATH = config.directory.tracker_db_dir + "nodes.json"
 FILES_INFO_PATH = config.directory.tracker_db_dir + "files.json"
@@ -63,6 +63,8 @@ class Tracker:
         self.ping_result.pack(pady=5)
 
     def init_tracker_db(self):
+        if not os.path.exists(TRACKER_FOLDER):
+            os.makedirs(TRACKER_FOLDER)
         if not os.path.exists(FILES_INFO_PATH):
             with open(FILES_INFO_PATH, 'w') as f:
                 json.dump({}, f)
@@ -207,6 +209,8 @@ class Tracker:
             self.file_owners_list[infohash] = []
         self.file_owners_list[infohash].append(json.dumps(entry))
         self.file_owners_list[infohash] = list(set(self.file_owners_list[infohash]))
+        print(self.send_freq_list)
+        print(msg['node_id'])
         self.send_freq_list[msg['node_id']] += 1
         self.save_db_as_json()
         
@@ -334,14 +338,14 @@ class Tracker:
             logging.error(f"Error searching for keyword: {e}")
         return matched_files
 
-    def get_metainfo(self, infohash):
-        """
-        Get metainfo for a given infohash
-        """
-        if infohash in self.metainfo_list:
-            return self.metainfo_list[infohash]
-        else:
-            return []
+    # def get_metainfo(self, infohash):
+    #     """
+    #     Get metainfo for a given infohash
+    #     """
+    #     if infohash in self.metainfo_list:
+    #         return self.metainfo_list[infohash]
+    #     else:
+    #         return []
 
     def handle_node_request(self, request):
         msg = request.json
@@ -420,15 +424,15 @@ class Tracker:
                 update_data = {
                     "file_owners_list": self.file_owners_list,
                     "send_freq_list": self.send_freq_list,
-                    # "user_list": users_data,
                     "metainfo_list": self.metainfo_list,
-                    "addrs_list": addrs_list
+                    "addrs_list": addrs_list,
+                    "users_online": self.users_online
                 }
 
                 conn.sendall(json.dumps(update_data).encode())
                 logging.info("Sent data update to tracker_backup.")
                 
-                threading.Event().wait(5)
+                Event().wait(5)
         except Exception as e:
             logging.error(f"Connection to tracker_backup failed: {e}")
         finally:
@@ -444,7 +448,7 @@ class Tracker:
             while True:
                 conn, addr = listen_socket.accept()
                 logging.info(f"Connected to tracker_backup at {addr}")
-                threading.Thread(target=self.handle_backup_connection, args=(conn,)).start()
+                Thread(target=self.handle_backup_connection, args=(conn,)).start()
 
 
     def run_flask(self):
@@ -467,14 +471,14 @@ class Tracker:
         logging.info("Tracker main started.")
 
         # Start threads for backup listener and periodic node check
-        backup_listener_thread = threading.Thread(target=self.listen_for_backup, daemon=True)
+        backup_listener_thread = Thread(target=self.listen_for_backup, daemon=True)
         backup_listener_thread.start()
 
-        timer_thread = threading.Thread(target=self.check_nodes_periodically, args=(config.constants.TRACKER_TIME_INTERVAL,), daemon=True)
+        timer_thread =Thread(target=self.check_nodes_periodically, args=(config.constants.TRACKER_TIME_INTERVAL,), daemon=True)
         timer_thread.start()
 
         # Run Flask in separate thread
-        flask_thread = threading.Thread(target=self.run_flask, daemon=True)
+        flask_thread = Thread(target=self.run_flask, daemon=True)
         flask_thread.start()
 
         # Start Tkinter GUI loop

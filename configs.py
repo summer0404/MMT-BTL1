@@ -5,7 +5,8 @@ CFG = {
     "directory": {
         "logs_dir": "logs/",
         "node_files_dir": "node_files/",
-        "tracker_db_dir": "tracker_DB/"
+        "tracker_db_dir": "tracker_DB/",
+        "backup_tracker_db_dir": "backup_tracker_DB/",
     },
     "constants": {
         "AVAILABLE_PORTS_RANGE": (1024, 65535), # range of available ports on the local computer
