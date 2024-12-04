@@ -5,6 +5,7 @@ import argparse
 from threading import Thread, Timer
 from operator import itemgetter
 import os
+import base64
 import json
 import time
 import hashlib
@@ -17,6 +18,7 @@ from tkinter import messagebox, scrolledtext, filedialog
 from flask import Flask, jsonify
 import logging
 import time  # Import time module
+import bencodepy
 warnings.filterwarnings("ignore")
 
 from configs import CFG, Config
@@ -36,8 +38,9 @@ class Node:
         self.root.geometry("400x300")
         self.root.configure(bg="#f0f0f0")
         
+        
         # Đầu tiên, hiển thị giao diện đăng nhập
-        self.show_login_screen()
+        # self.show_login_screen()
 
         # Các biến được khởi tạo sau khi đăng nhập thành công
       
@@ -55,6 +58,7 @@ class Node:
         self.app = Flask(__name__)
         self.listen_tracker_port = generate_random_port()
         self.next_call = time.time()
+        self.initialize_node()
         # Định nghĩa endpoint cho Flask app
         @self.app.route('/ping', methods=['GET'])
         def ping():
@@ -68,86 +72,64 @@ class Node:
         """Chạy Flask server"""
         self.app.run(host="127.0.0.1", port=self.listen_tracker_port, debug=False, use_reloader=False)
 
-    def login(self):
-        username = self.username_entry.get()
-        password = self.password_entry.get()
+    # def login(self):
+    #     username = self.username_entry.get()
+    #     password = self.password_entry.get()
 
-        if not username or not password:
-            messagebox.showerror("Error", "Please enter node ID, username, and password.")
-            return
+    #     if not username or not password:
+    #         messagebox.showerror("Error", "Please enter node ID, username, and password.")
+    #         return
 
-        # self.node_id = int(node_id)  # Set the node ID
+    #     # self.node_id = int(node_id)  # Set the node ID
 
-        # Gửi yêu cầu đăng nhập đến tracker
-        payload = {
-            'username': username,
-            'password': password,
-            'mode': 'LOGIN'
-        }
-        response = requests.post(PROXY_ADDRESS, json=payload)
+    #     # Gửi yêu cầu đăng nhập đến tracker
+    #     payload = {
+    #         'username': username,
+    #         'password': password,
+    #         'mode': 'LOGIN'
+    #     }
+    #     response = requests.post(PROXY_ADDRESS, json=payload)
 
-        if response.status_code == 200:
-            response_data = response.json()
-            if response_data.get('status') == 'success':
-                self.node_id = response_data.get('node_id')
-                if self.node_id is not None:
-                    messagebox.showinfo("Login", "Login successful!")
-                    self.initialize_node()  # Khởi tạo node và chuyển sang giao diện chính
-                else:
-                    messagebox.showerror("Login Failed", "Invalid response: missing node ID.")
-            else:
-                messagebox.showerror("Login Failed", response_data.get('message', "Unknown error."))
-        else:
-            messagebox.showerror("Error", "Failed to connect to tracker.")
+    #     if response.status_code == 200:
+    #         response_data = response.json()
+    #         if response_data.get('status') == 'success':
+    #             self.node_id = response_data.get('node_id')
+    #             if self.node_id is not None:
+    #                 messagebox.showinfo("Login", "Login successful!")
+    #                 self.initialize_node()  # Khởi tạo node và chuyển sang giao diện chính
+    #             else:
+    #                 messagebox.showerror("Login Failed", "Invalid response: missing node ID.")
+    #         else:
+    #             messagebox.showerror("Login Failed", response_data.get('message', "Unknown error."))
+    #     else:
+    #         messagebox.showerror("Error", "Failed to connect to tracker.")
 
-    def register(self):
-        username = self.username_entry.get()
-        password = self.password_entry.get()
+    # def register(self):
+    #     username = self.username_entry.get()
+    #     password = self.password_entry.get()
 
-        if not username or not password:
-            messagebox.showerror("Error", "Please enter both username and password.")
-            return
+    #     if not username or not password:
+    #         messagebox.showerror("Error", "Please enter both username and password.")
+    #         return
 
-        # Gửi yêu cầu đăng ký đến tracker
-        payload = {
-            'username': username,
-            'password': password,
-            'mode': 'REGISTER'
-        }
-        response = requests.post(PROXY_ADDRESS, json=payload)
+    #     # Gửi yêu cầu đăng ký đến tracker
+    #     payload = {
+    #         'username': username,
+    #         'password': password,
+    #         'mode': 'REGISTER'
+    #     }
+    #     response = requests.post(PROXY_ADDRESS, json=payload)
 
-        if response.status_code == 200:
-            response_data = response.json()
-            if response_data.get('status') == 'success':
-                messagebox.showinfo("Registration", "Account created successfully. Please login.")
-            else:
-                messagebox.showerror("Registration Failed", response_data.get('message', "Unknown error."))
-        else:
-            messagebox.showerror("Error", "Failed to connect to tracker.")
+    #     if response.status_code == 200:
+    #         response_data = response.json()
+    #         if response_data.get('status') == 'success':
+    #             messagebox.showinfo("Registration", "Account created successfully. Please login.")
+    #         else:
+    #             messagebox.showerror("Registration Failed", response_data.get('message', "Unknown error."))
+    #     else:
+    #         messagebox.showerror("Error", "Failed to connect to tracker.")
    
-    def show_login_screen(self):
-        """Hiển thị giao diện đăng nhập."""
-        # Xóa mọi thành phần giao diện cũ
-        for widget in self.root.winfo_children():
-            widget.destroy()
-
-        # Tạo giao diện đăng nhập
-        self.root.geometry("400x300")
-        login_frame = tk.Frame(self.root)
-        login_frame.pack(pady=20)
-
-
-        tk.Label(login_frame, text="Username:").grid(row=0, column=0, padx=5, pady=5)
-        self.username_entry = tk.Entry(login_frame)
-        self.username_entry.grid(row=0, column=1, padx=5, pady=5)
-
-        tk.Label(login_frame, text="Password:").grid(row=1, column=0, padx=5, pady=5)
-        self.password_entry = tk.Entry(login_frame, show="*")
-        self.password_entry.grid(row=1, column=1, padx=5, pady=5)
-
-        tk.Button(login_frame, text="Login", command=self.login).grid(row=2, column=0, padx=5, pady=5)
-        tk.Button(login_frame, text="Register", command=self.register).grid(row=2, column=1, padx=5, pady=5)
-
+ 
     def initialize_node(self):
         """Khởi tạo node sau khi đăng nhập thành công và hiển thị giao diện chính."""
         # Xóa giao diện đăng nhập
@@ -157,15 +139,17 @@ class Node:
         # Khởi tạo các thuộc tính cho Node
         self.rcv_socket = self.set_socket(generate_random_port())
         self.send_socket = self.set_socket(generate_random_port())
-        self.fetch_owned_files()
+        
     
         self.listen_port = self.send_socket.getsockname()[1]
         
         # Hiển thị giao diện chính
-        self.show_main_screen()
 
         # Gửi yêu cầu đăng ký node vào mạng torrent
         self.enter_torrent()
+        self.show_main_screen()
+        self.init_node_directory()
+        # self.fetch_owned_files()
         
         # Khởi động Flask server trong luồng riêng
         flask_thread = Thread(target=self.run_flask)
@@ -201,18 +185,7 @@ class Node:
         # Logout Button in the top-right corner
         tk.Button(header_frame, text="Logout", command=self.exit_node).grid(row=0, column=2, padx=10, pady=10, sticky="e")
 
-        # Section: Search Panel
-        search_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
-        search_frame.pack(fill=tk.X, pady=0)
-        tk.Label(search_frame, text="Search", font=("Arial", 12, "bold"), bg="#d9eaf7").pack(anchor="w", padx=10, pady=5)
 
-        # Search Panel Content
-        search_content = tk.Frame(search_frame, bg="#d9eaf7")
-        search_content.pack(fill=tk.X, padx=10, pady=0)
-        tk.Label(search_content, text="Keyword or filename:", bg="#d9eaf7").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.keyword = tk.Entry(search_content, width=40)
-        self.keyword.grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(search_content, text="Search", command=lambda: self.search_file(self.keyword.get())).grid(row=0, column=2, padx=5, pady=5)
 
         # Section: Upload Panel
         upload_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
@@ -226,7 +199,7 @@ class Node:
         self.filename = tk.Entry(upload_content, width=40)
         self.filename.grid(row=0, column=1, padx=5, pady=5)
         tk.Button(upload_content, text="Upload", command=lambda: self.set_send_mode(self.filename.get())).grid(row=0, column=2, padx=5, pady=5)
-        tk.Button(upload_content, text="Browse from computer", command=self.browse_file).grid(row=0, column=3, padx=5, pady=5)
+        tk.Button(upload_content, text="Browse from computer", command=self.browse_file_upload).grid(row=0, column=3, padx=5, pady=5)
 
         # Section: Download Panel
         download_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
@@ -239,24 +212,35 @@ class Node:
         tk.Label(download_content, text="Info hash:", bg="#d9eaf7").grid(row=0, column=0, padx=5, pady=5, sticky="w")
         self.infohash = tk.Entry(download_content, width=40)
         self.infohash.grid(row=0, column=1, padx=5, pady=5)
-        tk.Button(download_content, text="Find Owners", command=lambda: self.find_owners(self.infohash.get())).grid(row=0, column=2, padx=5, pady=5)
-
+        tk.Button(download_content, text="Browse .torrent file", command=self.browse_file_torrent).grid(row=0, column=2, padx=5, pady=5)
+        
         tk.Button(download_content, text="Add queue download", command=lambda: self.add_to_queue(self.infohash.get())).grid(row=0, column=3, padx=5, pady=5)
-        tk.Button(download_content, text="Download", command=self.set_download_mode).grid(row=0, column=4, padx=5, pady=5)
+        tk.Button(download_content, text="Download", command=self.set_download_mode, bg="green",
+    fg="white").grid(row=0, column=4, padx=5, pady=5)
+
+
+                # Section: Search Panel
+        search_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
+        search_frame.pack(fill=tk.X, pady=0)
+        tk.Label(search_frame, text="Dont have .torrent file? Search infohash", font=("Arial", 12, "bold"), bg="#d9eaf7").pack(anchor="w", padx=10, pady=5)
+
+        # Search Panel Content
+        search_content = tk.Frame(search_frame, bg="#d9eaf7")
+        search_content.pack(fill=tk.X, padx=10, pady=0)
+        tk.Label(search_content, text="Keyword or filename:", bg="#d9eaf7").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        self.keyword = tk.Entry(search_content, width=40)
+        self.keyword.grid(row=0, column=1, padx=5, pady=5)
+        tk.Button(search_content, text="Search", command=lambda: self.search_file(self.keyword.get())).grid(row=0, column=2, padx=5, pady=5)
+
 
         # Section: Log Console
         log_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
         log_frame.pack(fill=tk.BOTH, expand=True, pady=0)
         tk.Label(log_frame, text="Log Console", font=("Arial", 12, "bold"), bg="#d9eaf7").pack(anchor="w", padx=10, pady=5)
-        self.log_text = scrolledtext.ScrolledText(log_frame, width=80, height=5, state='disabled', font=("Consolas", 10))
+        self.log_text = scrolledtext.ScrolledText(log_frame, width=160, height=5, state='disabled', font=("Consolas", 10))
         self.log_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
 
-        # Section: Download Progress
-        progress_frame = tk.Frame(main_frame, bg="#d9eaf7", bd=1, relief=tk.RIDGE)
-        progress_frame.pack(fill=tk.BOTH, expand=True, pady=0)
-        tk.Label(progress_frame, text="Download Progress", font=("Arial", 12, "bold"), bg="#d9eaf7").pack(anchor="w", padx=10, pady=5)
-        self.progress_text = scrolledtext.ScrolledText(progress_frame, width=80, height=5, state='disabled', font=("Consolas", 10))
-        self.progress_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=5)
+
 
        
         
@@ -274,14 +258,14 @@ class Node:
             # Force UI update
             self.root.update_idletasks()
 
-    def update_progress(self, message):
-        """Update download progress in UI"""
-        self.progress_text.configure(state='normal')
-        self.progress_text.insert(tk.END, f"[Node {self.node_id}] {message}\n")
-        self.progress_text.configure(state='disabled')
-        self.progress_text.see(tk.END)
-        # Force UI update
-        self.root.update_idletasks()
+    # def update_progress(self, message):
+    #     """Update download progress in UI"""
+    #     self.progress_text.configure(state='normal')
+    #     self.progress_text.insert(tk.END, f"[Node {self.node_id}] {message}\n")
+    #     self.progress_text.configure(state='disabled')
+    #     self.progress_text.see(tk.END)
+    #     # Force UI update
+    #     self.root.update_idletasks()
    
     def hash_filename(self, filename: str) -> str:
         """Băm tên tệp bằng SHA-256"""
@@ -343,11 +327,6 @@ class Node:
             else:
                 raise e  # Ném lại lỗi nếu không phải lỗi đã kết nối
 
-    def split_file_to_chunks(self, file_path: str, rng: tuple) -> list:
-        with open(file_path, "r+b") as f:
-            mm = mmap.mmap(f.fileno(), 0)[rng[0]: rng[1]]
-            piece_size = config.constants.CHUNK_PIECES_SIZE
-            return [mm[p: p + piece_size] for p in range(0, rng[1] - rng[0], piece_size)]
 
     def reassemble_file(self, chunks: list, file_path: str):
         with open(file_path, "wb+") as f:  # Open in binary write mode
@@ -359,33 +338,66 @@ class Node:
                 f.write(ch)
             f.flush()
             f.close()
-
+    import json
+    def split_file_to_chunks(self, file_path: str, rng: tuple) -> list:
+        with open(file_path, "r+b") as f:
+            file_size = os.path.getsize(file_path)
+            if rng[0] < 0 or rng[1] > file_size or rng[0] > rng[1]:
+                raise ValueError("Invalid range specified!")
+            
+            with mmap.mmap(f.fileno(), 0) as mm:
+                mm_chunk = mm[rng[0]:rng[1]]
+                piece_size = config.constants.CHUNK_PIECES_SIZE
+                return [mm_chunk[p: p + piece_size] for p in range(0, len(mm_chunk), piece_size)]
     def send_chunk(self, conn, filename: str, rng: tuple, dest_node_id: int):
         file_path = f"{config.directory.node_files_dir}node{self.node_id}/{filename}"
         chunk_pieces = self.split_file_to_chunks(file_path=file_path, rng=rng)
-        # Lấy địa chỉ của node được gửi đến thông qua kết nối conn
-        peer_address = conn.getpeername()  # Trả về tuple (IP, cổng)
+        peer_address = conn.getpeername()
         print(f"Sending chunks to node {dest_node_id} at address {peer_address[0]}:{peer_address[1]}")
         
-        for i, p in enumerate(chunk_pieces):
-            # Chuẩn bị dữ liệu để gửi
-            idx = rng[0] + i  # `idx` được tính theo vị trí thực tế trong file
-            msg = {
-                "src_node_id": self.node_id,
-                "dest_node_id": dest_node_id,
-                "filename": filename,
-                "range": rng,
-                "idx": idx,
-                "chunk": p.decode() if isinstance(p, bytes) else p
-            }
-            
-            # Gửi chunk qua kết nối đã có
-            conn.sendall(json.dumps(msg).encode())  # Chuyển đổi message thành JSON rồi gửi
-            
-            log_content = f"The chunk of file {filename} has been sent to node {dest_node_id}!"
-            self.log_message(log_content)
+        def send_single_chunk(conn, chunk_data, idx, rng, filename, dest_node_id):
+            try:
+                # Encode the chunk data for safe transmission
+                chunk_encoded = base64.b64encode(chunk_data).decode() if isinstance(chunk_data, bytes) else chunk_data
 
-        # Thông báo rằng tất cả các chunk đã được gửi xong (idx = -1)
+                # Prepare the message
+                msg = {
+                    "src_node_id": self.node_id,
+                    "dest_node_id": dest_node_id,
+                    "filename": filename,
+                    "range": rng,
+                    "idx": idx,
+                    "chunk": chunk_encoded
+                }
+
+                # Send the message
+                conn.sendall(json.dumps(msg).encode())
+                # self.log_message(f"[+] Sent chunk {idx} of file {filename}")
+            except Exception as e:
+                self.log_message(f"[-] Error sending chunk {idx} of file {filename}: {e}")
+
+        # Create threads to send chunks concurrently
+        threads = []
+        log_content=f"[+] Number of chunks to send: {len(chunk_pieces)}"
+        self.log_message(log_content)
+        for i, chunk in enumerate(chunk_pieces):
+            idx = rng[0] + i * config.constants.CHUNK_PIECES_SIZE
+            log_content=f"[+] Starting thread {i} for chunk {idx}"
+            self.log_message(log_content)
+            thread = Thread(
+                target=send_single_chunk,
+                args=(conn, chunk, idx, rng, filename, dest_node_id)
+            )
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+        log_content=f"[+] Number of threads created: {len(threads)}"
+        self.log_message(log_content)
+
+        # Send end-of-transfer message
         end_msg = {
             "src_node_id": self.node_id,
             "dest_node_id": dest_node_id,
@@ -393,10 +405,9 @@ class Node:
             "range": rng,
             "idx": -1
         }
-        conn.sendall(json.dumps(end_msg).encode())  # Gửi thông báo kết thúc
-        
-        log_content = f"All chunks of {filename} have been sent to node {dest_node_id}."
-        self.log_message(log_content)
+        conn.sendall(json.dumps(end_msg).encode())
+        self.log_message(f"[+] All chunks of {filename} have been sent.")
+
 
     def handle_requests(self, conn, msg: str, addr: tuple):
         try:
@@ -436,7 +447,7 @@ class Node:
             print(f"Received data: {data.decode()}")  # Hiển thị dữ liệu nhận được
             self.handle_requests(conn=conn, msg=data.decode(), addr=addr)  # Gọi hàm handle_requests để xử lý yêu cầu
 
-    def browse_file(self):
+    def browse_file_upload(self):
         file_path = filedialog.askopenfilename(title="Select file to upload")
         filename = os.path.basename(file_path)
         des_path = f"{config.directory.node_files_dir}node{self.node_id}/{filename}"
@@ -446,16 +457,58 @@ class Node:
         except Exception as e:
             print(f"Failed to copy file {filename} to {des_path}: {e}")
         file_size = os.path.getsize(des_path)
-        hash_content = self.hash_file(des_path)
         meta_info = {
             'filename': filename,
             'filesize': file_size,
-            'hash_content': hash_content
         }
-        info_hash = self.hash_meta_info(meta_info)
+        infohash, torrent_data = self.create_torrent_file(des_path, file_size)
         self.files.append(filename)
-        self.metainfo_list[info_hash] = meta_info
+        self.metainfo_list[infohash] = meta_info
         self.set_send_mode(filename)
+
+    def browse_file_torrent(self):
+        file_path = filedialog.askopenfilename(title="Select .torrent file")
+        try:
+            with open(file_path, 'rb') as f:
+                torrent_data = bencodepy.decode(f.read())
+                infohash = hashlib.sha1(bencodepy.encode(torrent_data[b'info'])).digest().hex()
+                self.add_to_queue(infohash)
+        except Exception as e:
+            print(f"Failed to read .torrent file: {e}")
+
+
+    def create_torrent_file(self, file_path, file_size):
+        chunk_size=config.constants.CHUNK_PIECES_SIZE
+        num_pieces = (file_size+chunk_size-1)//chunk_size
+        tracker_url =config.constants.TRACKER_ADDR[0]
+        pieces=b''
+        with open(file_path, 'rb') as f:
+            for _ in range(num_pieces):
+                piece_data = f.read(chunk_size)
+                pieces += hashlib.sha1(piece_data).digest()
+        
+        info = {
+            b'piece length': chunk_size,
+            b'pieces': pieces,
+            b'name': os.path.basename(file_path).encode('utf-8'),
+            b'length': file_size
+        }
+        torrent_data = {
+            b'announce': tracker_url.encode('utf-8'),
+            b'info': info
+        }
+        torrent_path = file_path + '.torrent'
+        with open(torrent_path, 'wb') as f:
+            f.write(bencodepy.encode(torrent_data))
+
+        # torrent_file = {
+        #     'filename': filename,
+        #     'filesize': file_size,
+        #     'hash_content': hash_content
+        # }
+        infohash = hashlib.sha1(bencodepy.encode(info)).digest().hex()
+        return infohash,torrent_data
+
     def set_send_mode(self, filename):
         self.fetch_owned_files()
         if filename not in self.files:
@@ -464,36 +517,31 @@ class Node:
         file_path = f"{config.directory.node_files_dir}node{self.node_id}/{filename}"
         # Send HTTP request to the tracker to announce file ownership
         file_size = os.path.getsize(file_path)
-        hash_content=self.hash_file(file_path)
+        infohash,torrent_data = self.create_torrent_file(file_path, file_size)
+        # print('infohash:',infohash)
+        # print("torrent_data:",torrent_data)
         payload = {
             'node_id': self.node_id,
             'mode': 'OWN',
-            'filename': filename,
-            'filesize': file_size,
-            'hash_content': hash_content,
-            'listen_port': self.listen_port
+            "torrent_data":bencodepy.encode(torrent_data).decode('latin1'),
+            'listen_port': self.listen_port,
         }
         
+        
         # Calculate infohash from relevant fields
-        meta_info = {
-            'filename': payload['filename'],
-            'filesize': payload['filesize'],
-            'hash_content': payload['hash_content']
-        }
-        payload['infohash'] = self.hash_meta_info(meta_info)
         response = requests.post(PROXY_ADDRESS, json=payload)
         if response.status_code == 200:
-            self.log_message(f"Announced ownership of {filename} to tracker.")
+            self.log_message(f"[+] Sent metainfo of {filename} to tracker.")
         else:
-            self.log_message(f"Failed to announce ownership of {filename} to tracker.")
+            self.log_message(f"[-] Failed to sent metainfo of {filename} to tracker.")
 
         if self.is_in_send_mode:
-            log_content = f"Already in send mode!"
+            log_content = f"[-] Already in send mode!"
             self.log_message(log_content)
             return
         else:
             self.is_in_send_mode = True
-            log_content = f"Waiting for requests..."
+            log_content = f"[+] Open listen port: {self.listen_port}"
             self.log_message(log_content)
             t = Thread(target=self.listen, args=())
             t.setDaemon(True)
@@ -562,13 +610,13 @@ class Node:
         
         try:
             temp_sock.connect(tuple(dest_node["addr"]))  # Connect to the destination node's address
-            log_content = f"Connected to node {dest_node['node_id']} at {dest_node['addr']}"
-            self.update_progress(f"Connected to node {dest_node['node_id']} at {dest_node['addr']}")
+            # log_content = f"Connected to node {dest_node['node_id']} at {dest_node['addr']}"
+            # self.log_message(log_content)
 
             # Send the request message for chunk data
             temp_sock.sendall(request_str.encode())
-            log_content = f"Sent request for chunk of {filename} to node {dest_node['node_id']} at {dest_node['addr']}"
-            self.update_progress(f"Sent request for chunk of {filename} to node {dest_node['node_id']}")
+            log_content = f"[+] Sent request for chunk {range} of {filename} to node {dest_node['node_id']} at {dest_node['addr']}"
+            self.log_message(log_content)
 
             chunks_received = b""  # Buffer for storing the received chunks
 
@@ -596,19 +644,21 @@ class Node:
 
                         # Check for end-of-transfer signal (idx == -1)
                         if chunk_msg["idx"] == -1:
-                            log_content = f"Finished receiving chunks for {filename} from node {dest_node['node_id']}"
-                            self.update_progress(f"Finished receiving chunks for {filename} from node {dest_node['node_id']}")
+                            log_content = f"[+] Finished receiving chunks for {filename} from node {dest_node['node_id']}"
+                            self.log_message(log_content)
                             # Close socket here only if it's still open
                             if temp_sock and not temp_sock._closed:
                                 temp_sock.close()
                             return  # Exit the function after receiving all chunks
                         else: 
-                            self.update_progress(f"Received chunk for {filename} from node {dest_node['node_id']}")
+                            self.log_message(f"[+] Received chunk {chunk_msg['idx']} for {filename} from node {dest_node['node_id']}")
 
                         # Convert chunk to bytes if it's not already
+                        chunk_data = base64.b64decode(chunk_msg["chunk"]) if isinstance(chunk_msg["chunk"], str) else chunk_msg["chunk"]
+
                         chunk = {
                             "idx": chunk_msg["idx"],
-                            "chunk": chunk_msg["chunk"].encode() if isinstance(chunk_msg["chunk"], str) else chunk_msg["chunk"]
+                            "chunk": chunk_data
                         }
 
                         # Ensure filename exists in downloaded_files as a list
@@ -659,11 +709,9 @@ class Node:
 
         to_be_used_owners = owners[:config.constants.MAX_SPLITTNES_RATE]
         # 1. first ask the size of the file from peers
-        log_content = f"You are going to download {filename} from Node(s) {[o[0]['node_id'] for o in to_be_used_owners]}"
-        self.log_message(log_content)
-        
-        log_content = f"The file {filename} which you are about to download, has size of {file_size} bytes"
-        self.log_message(f"The file {filename} which you are about to download, has size of {file_size} bytes")
+        # log_content = f"You are going to download {filename} with {file_size} bytes from Node(s) {[o[0]['node_id'] for o in to_be_used_owners]}"
+        # self.log_message(log_content)
+
 
         # Start timing the download process
         start_time = time.time()
@@ -681,26 +729,26 @@ class Node:
             t.start()
             neighboring_peers_threads.append(t)
             # In ra số lượng neighboring_peers_threads
-            print(f"Number of threads created: {len(neighboring_peers_threads)}")
         for t in neighboring_peers_threads:
             t.join()
+        print(f"Number of threads created: {len(neighboring_peers_threads)}")
 
 
         # print(f"Downloaded chunks for {filename}: {self.downloaded_files[filename]}")
-        log_content = "All the chunks of {} has downloaded from neighboring peers. But they must be reassembled!".format(filename)
-        self.log_message(f"All chunks of {filename} downloaded and reassembled successfully!")
-        print("All the chunks of {} has downloaded from neighboring peers. But they mus")
+        log_content = f"[+] Downloaded all the chunks of {filename}. Sorting..."
+        self.log_message(log_content)
+        # print(log_content)
         
         # 4. Now we have downloaded all the chunks of the file. It's time to sort them.
         sorted_chunks = self.sort_downloaded_chunks(filename=filename)
         
-        log_content = f"All the pieces of the {filename} is now sorted and ready to be reassembled."
+        log_content = f"[+] Sorted all the chunks of {filename}"
         self.log_message(log_content)
 
         # Calculate and log the time taken for the download process
         end_time = time.time()
         download_duration = end_time - start_time
-        log_content = f"Download of {filename} completed in {download_duration:.2f} seconds."
+        log_content = f"[+] Download finished. Time {download_duration} seconds"
         self.log_message(log_content)
         
         # 5. Finally, we assemble the chunks to re-build the file
@@ -712,37 +760,43 @@ class Node:
         self.reassemble_file(chunks=total_file,
                              file_path=file_path)
         
-        log_content = f"{filename} has successfully downloaded and saved in my files directory."
+        log_content = f"[+] Finished download. File saved at {file_path}. Opening port..."
         self.log_message(log_content)
         self.files.append(filename)
         
         # 6. Sau khi tải xong gửi thông báo đến tracker, sẵn sàng chia sẽ tệp vừa tải
-        hashed_filename = self.hash_filename(filename)
-        payload = {
-            'node_id': self.node_id,
-            'mode': 'OWN',
-            'infohash': hashed_filename,
-            'filename': filename,
-            'filesize': file_size,
-            'listen_port': self.listen_port
-        }
-        response = requests.post(PROXY_ADDRESS, json=payload)
-        if response.status_code == 200:
-            self.log_message(f"Announced ownership of {filename} to tracker.")
-        else:
-            self.log_message(f"Failed to announce ownership of {filename} to tracker.")
+        self.set_send_mode(filename)
+        # payload = {
+        #     'node_id': self.node_id,
+        #     'mode': 'OWN',
+        #     'infohash': hashed_filename,
+        #     'filename': filename,
+        #     'filesize': file_size,
+        #     'listen_port': self.listen_port
+        # }
+        # payload = {
+        #     'node_id': self.node_id,
+        #     'mode': 'OWN',
+        #     "torrent_data":bencodepy.encode(torrent_data).decode('latin1'),
+        #     'listen_port': self.listen_port,
+        # }
+        # response = requests.post(PROXY_ADDRESS, json=payload)
+        # if response.status_code == 200:
+        #     self.log_message(f"Announced ownership of {filename} to tracker.")
+        # else:
+        #     self.log_message(f"Failed to announce ownership of {filename} to tracker.")
 
-        if self.is_in_send_mode:
-            log_content = f"Already in send mode!"
-            self.log_message(log_content)
-            return
-        else:
-            self.is_in_send_mode = True
-            log_content = f"Waiting for requests..."
-            self.log_message(log_content)
-            t = Thread(target=self.listen, args=())
-            t.setDaemon(True)
-            t.start()
+        # if self.is_in_send_mode:
+        #     log_content = f"Already in send mode!"
+        #     self.log_message(log_content)
+        #     return
+        # else:
+        #     self.is_in_send_mode = True
+        #     log_content = f"Waiting for requests..."
+        #     self.log_message(log_content)
+        #     t = Thread(target=self.listen, args=())
+        #     t.setDaemon(True)
+        #     t.start()
         
     #mới cập nhật
     def set_download_mode(self):
@@ -757,13 +811,17 @@ class Node:
             output+=f"Filename: {file['filename']}\n"
             output+=f"Filesize: {file['filesize']}\n"
             output+=f"Infohash: {file['infohash']}\n"
+            output+=f"Piece length: {file['piece_length']}\n"
+            output+=f"Pieces hash: {file['pieces']}\n"
+            output+="\n"
+
         return output
     def format_torrent_output(self,data):
         output=''
-        output+=f"Filename: {data['filename']}\n"
-        output+=f"Filesize: {data['filesize']}\n"
-        output+=f"Infohash: {data['infohash']}\n"
-        output+="Search Results:\n"
+        output+=f"   Filename: {data['filename']}\n"
+        output+=f"   Filesize: {data['filesize']}\n"
+        output+=f"   Infohash: {data['infohash']}\n"
+        output+="   Search Results:\n"
         for result in data['search_result']:
             output+=f"\tNode ID: {result[0]['node_id']}"
             output+=f" Address: {result[0]['addr']}\n"
@@ -774,7 +832,7 @@ class Node:
             self.log_message(log_content)
             return
         else:
-            log_content = f"You just started to download file with hash {infohash}. Let's search it in torrent!"
+            log_content = f"[+] Start download file with infohash {infohash}. Searching in torrent..."
             self.log_message(log_content)
 
             tracker_response = self.find_owners(infohash)
@@ -791,8 +849,8 @@ class Node:
             else:
                 self.log_message("File not found in torrent!")
              # Sau khi tải xong, xóa file khỏi danh sách
-            if filename in self.file_entry_list:
-                self.file_entry_list.remove(filename)
+            if infohash in self.file_entry_list:
+                self.file_entry_list.remove(infohash)
 
 # search with keyword
     def search_file(self, keyword:str):
@@ -814,13 +872,13 @@ class Node:
         except Exception as e:
             self.log_message(f"Error while searching torrent: {e}")
             return {}
-    def find_owners(self, info_hash: str):
+    def find_owners(self, infohash: str):
          # Gửi yêu cầu HTTP đến tracker để tìm kiếm file
   
         payload = {
             'node_id': self.node_id,
             'mode': 'TORRENT',
-            'infohash': info_hash,
+            'infohash': infohash,
         }
         
         #mới cập nhật
@@ -833,19 +891,24 @@ class Node:
                 self.log_message(f"[+] Tracker response:\n{tracker_response}")  # In ra phản hồi từ tracker
                 return tracker_msg
             else:
-                self.log_message(f"Failed to search torrent for {info_hash}.")
+                self.log_message(f"[-] Failed to search torrent for {infohash}.")
                 return {}
         except Exception as e:
-            self.log_message(f"Error while searching torrent: {e}")
+            self.log_message(f"[-] Error while searching torrent: {e}")
             return {}       
         
     def add_to_queue(self, info_hash: str):
+        self.fetch_owned_files()
+        if (info_hash == ""):
+            self.log_message("[-] Please enter a valid infohash!")
+            return
         if info_hash not in self.file_entry_list:
+            # print(self.metainfo_list)
             if info_hash in self.metainfo_list:
-                self.log_message(f"You already have this file!")
+                self.log_message(f"[-] You already have this file!")
             else:
                 self.file_entry_list.append(info_hash)
-                self.log_message(f"Added {info_hash} to download queue.")
+                self.log_message(f"[+] Added file with infohash {info_hash} to download queue.")
 
 
     # def search_torrent(self, filename: str) -> dict:
@@ -876,23 +939,31 @@ class Node:
     #     except Exception as e:
     #         self.log_message(f"Error while searching torrent: {e}")
     #         return {}
-
+    def init_node_directory(self):
+        node_files_dir = config.directory.node_files_dir + 'node' + str(self.node_id)
+        
+        # If the directory exists, delete it and create it again as an empty folder
+        if os.path.exists(node_files_dir):
+            shutil.rmtree(node_files_dir)  # Delete the folder and its contents
+        os.makedirs(node_files_dir)  # Recreate the folder as an empty folder
     def fetch_owned_files(self):
         node_files_dir = config.directory.node_files_dir + 'node' + str(self.node_id)
         if os.path.exists(node_files_dir) and os.path.isdir(node_files_dir):
             for file_name in os.listdir(node_files_dir):
                 file_path = os.path.join(node_files_dir, file_name)
+                if file_name.endswith('.torrent'):  # Bỏ qua file có đuôi .torrent
+                    continue
+                if file_name in self.files and os.path.exists(file_path+'.torrent'):
+                    continue
                 if os.path.isfile(file_path):  # Chỉ xử lý file, bỏ qua folder con
                     file_size = os.path.getsize(file_path)
-                    hash_content = self.hash_file(file_path)
+                    infohash, torrent_data = self.create_torrent_file(file_path, file_size)
+                    self.files.append(file_name)
                     meta_info = {
                         'filename': file_name,
                         'filesize': file_size,
-                        'hash_content': hash_content
                     }
-                    info_hash = self.hash_meta_info(meta_info)
-                    self.files.append(file_name)
-                    self.metainfo_list[info_hash] = meta_info
+                    self.metainfo_list[infohash] = meta_info
 
         else:
             os.makedirs(node_files_dir)
@@ -918,21 +989,22 @@ class Node:
         # Using HTTP to register with the tracker
         
         payload = {
-            'node_id': self.node_id,
             'mode': 'ENTER',
             'listen_tracker_port': self.listen_tracker_port
         }
         response = requests.post(PROXY_ADDRESS, json=payload)
+        node_id = response.json()['node_id']
+        self.node_id = node_id
         if response.status_code == 200:
             log_content = f"Successfully entered the torrent."
         else:
             log_content = f"Failed to enter the torrent."
-        self.log_message(log_content)
+        print(log_content)
 
     def inform_tracker_periodically(self, interval: int):
-        log_content = f"I informed the tracker that I'm still alive in the torrent!"
+        log_content = f"Send alive request to tracker every {interval} seconds."
         # self.log_message(log_content)
-        print(log_content)
+        # print(log_content)
 
         # Inform tracker via HTTP
         

@@ -392,6 +392,7 @@ class Tracker_Backup:
             Timer(self.update_interval, self.request_update_from_main_tracker).start()
         else:
             self.main_tracker_active = False
+            
 
     def run(self):
         log_content = "***************** Tracker Backup started *****************"
