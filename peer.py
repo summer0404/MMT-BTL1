@@ -24,10 +24,10 @@ warnings.filterwarnings("ignore")
 from configs import CFG, Config
 config = Config.from_json(CFG)
 
-PROXY_ADDRESS = "http://localhost:12367/proxy" #cần chỉnh
-
-
-
+PROXY_HOST = config.constants.TRACKER_ADDR_PROXY[0]
+PROXY_PORT = config.constants.TRACKER_ADDR_PROXY[1]
+PROXY_ADDRESS = f'http://{PROXY_HOST}:{PROXY_PORT}/proxy'
+PEER_HOST = config.constants.PEER_HOST
 
 
 class Node:
@@ -70,7 +70,7 @@ class Node:
 
     def run_flask(self): #cần chỉnh
         """Chạy Flask server"""
-        self.app.run(host="127.0.0.1", port=self.listen_tracker_port, debug=False, use_reloader=False)
+        self.app.run(host=PEER_HOST, port=self.listen_tracker_port, debug=False, use_reloader=False)
 
     # def login(self):
     #     username = self.username_entry.get()
@@ -294,7 +294,7 @@ class Node:
 
     def set_socket(self, port: int) -> socket.socket:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Using TCP
-        sock.bind(('localhost', port)) #cần chỉnh
+        sock.bind((PEER_HOST, port)) #cần chỉnh
         return sock
     
     def log_message(self, message):

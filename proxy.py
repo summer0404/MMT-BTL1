@@ -2,20 +2,22 @@ from flask import Flask, request, jsonify
 import requests
 from configs import CFG, Config
 config = Config.from_json(CFG)
-TRACKER_HOST = config.constants.TRACKER_ADDR_BACKUP[0]
-TRACKER_PORT = config.constants.TRACKER_ADDR_BACKUP[1]
+PROXY_HOST = config.constants.TRACKER_ADDR_PROXY[0]
+PROXY_PORT = config.constants.TRACKER_ADDR_PROXY[1]
+BACKUP_TRACKER_HOST = config.constants.TRACKER_ADDR_BACKUP[0]
+BACKUP_TRACKER_PORT = config.constants.TRACKER_ADDR_BACKUP[1]
 MAIN_TRACKER_IP = config.constants.TRACKER_ADDR[0]
 MAIN_TRACKER_PORT = config.constants.TRACKER_ADDR[1]
 
 # Configuration
 MAIN_TRACKER_URL = f"http://{MAIN_TRACKER_IP}:{MAIN_TRACKER_PORT}/tracker"
-BACKUP_TRACKER_URL = f"http://{TRACKER_HOST}:{TRACKER_PORT}/tracker"
+BACKUP_TRACKER_URL = f"http://{BACKUP_TRACKER_HOST}:{BACKUP_TRACKER_PORT}/tracker"
 
 app = Flask(__name__)
 use_backup = False  # Flag to switch to backup tracker if main tracker is down
 
 
-def is_tracker_active(host=f"http://{config.constants.TRACKER_ADDR[0]}", port=config.constants.TRACKER_ADDR[1], timeout=2):
+def is_tracker_active(host=f"http://{MAIN_TRACKER_IP}", port=MAIN_TRACKER_PORT, timeout=2):
     """Checks if the main tracker is active."""
     try:
         response = requests.get(f"{host}:{port}/health", timeout=timeout)
@@ -61,4 +63,4 @@ def handle_node_request():
 
 
 if __name__ == '__main__':
-    app.run(host=TRACKER_HOST, port=12367) #cần chỉnh
+    app.run(host=PROXY_HOST, port=PROXY_PORT) #cần chỉnh

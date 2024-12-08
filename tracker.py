@@ -26,9 +26,9 @@ NODES_INFO_PATH = config.directory.tracker_db_dir + "nodes.json"
 FILES_INFO_PATH = config.directory.tracker_db_dir + "files.json"
 ADDRESS_INFO_PATH = config.directory.tracker_db_dir + "addrs.json"
 # Cấu hình
-TRACKER_HOST = 'localhost' #cần chỉnh
-TRACKER_PORT = 12345
-TRACKER_PORT_LISTEN = 23456
+TRACKER_HOST = config.constants.TRACKER_ADDR[0]
+TRACKER_PORT = config.constants.TRACKER_ADDR[1]
+TRACKER_PORT_LISTEN = config.constants.TRACKER_PORT_LISTEN
 
 class Tracker:
     def __init__(self, root):

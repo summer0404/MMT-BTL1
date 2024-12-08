@@ -10,6 +10,7 @@ CFG = {
     },
     "constants": {
         "AVAILABLE_PORTS_RANGE": (1024, 65535), # range of available ports on the local computer
+        "PEER_HOST": 'localhost',
         "TRACKER_ADDR": ('localhost', 12345), #cần chỉnh
         "TRACKER_ADDR_PROXY": ('localhost', 12367),#cần chỉnh
         "TRACKER_ADDR_BACKUP": ('localhost', 12389),#cần chỉnh
