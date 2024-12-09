@@ -35,7 +35,7 @@ class Node:
         # self.node_id = node_id
         self.root = tk.Tk()
         self.root.title("BitTorrent-like Network System")
-        self.root.geometry("400x300")
+        self.root.geometry("800x800")
         self.root.configure(bg="#f0f0f0")
         
         

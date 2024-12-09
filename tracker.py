@@ -468,7 +468,8 @@ class Tracker:
         app.run(host=config.constants.TRACKER_ADDR[0], port=config.constants.TRACKER_ADDR[1])
 
     def run(self):
-        logging.info("Tracker main started.")
+        
+        logging.info(f"Tracker is running on {TRACKER_HOST}:{TRACKER_PORT}")
 
         # Start threads for backup listener and periodic node check
         backup_listener_thread = Thread(target=self.listen_for_backup, daemon=True)
